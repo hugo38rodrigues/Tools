@@ -1,9 +1,20 @@
-# Linter
-This directory allows you to centralize the configuration for adding an ESLint.
+# Install Linter for a Langage
+For the chosen language, go to the directory and read the tutorial in the read me file.
 
-This linter will be based on Airbnb rules.
+- [JS](./JS/README.md)
+- [Nodejs](./Nodejs/README.md)
+- [React](./React/README.md)
+- [React + TS](./React+TS/README.md)
+- [TS](./TS/README.md)
 
-## Install the linter
+## Common Install
+
 ```
-npx install-peerdeps --dev eslint-config-airbnb-base
+npm i -D eslint eslint-config-airbnb-base eslint-plugin-import
+```
+
+If the project add Vitest:
+
+```
+npm i -D eslint-plugin-vitest
 ```
