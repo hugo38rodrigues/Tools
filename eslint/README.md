@@ -1,4 +1,4 @@
-# Install Linter for a Langage
+# Install Linter for your Langage
 For the chosen language, go to the directory and read the tutorial in the read me file.
 
 - [JS](./JS/README.md)
