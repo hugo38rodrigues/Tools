@@ -4,8 +4,7 @@ Copy and paste the following command to install the dependencies, then paste **.
 Don't forget to also paste ts.config.json into your repo.
 
 ```
-npm i -D typescript @typescript-eslint/parser @typescript-eslint/eslint-plugin \
-eslint-config-airbnb eslint-config-airbnb-typescript \
+npm i -D @eslint/js @typescript-eslint/eslint-plugin @typescript-eslint/parser \
 eslint-plugin-react eslint-plugin-react-hooks eslint-plugin-jsx-a11y \
 eslint-plugin-import eslint-import-resolver-typescript
 ```
