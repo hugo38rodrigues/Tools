@@ -1,0 +1,277 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  RÉFÉRENCE CI/CD — Anatomie d'un workflow GitHub Actions            ║
+# ║  Fichier "carte" : tout ce qu'on peut mettre, à customiser.        ║
+# ║  Emplacement : .github/workflows/<nom>.yml                         ║
+# ║                                                                    ║
+# ║  Lis-le de haut en bas : chaque bloc est indépendant.              ║
+# ║  Supprime ce dont tu n'as pas besoin, garde le reste.             ║
+# ║  👉 = zone à adapter.                                              ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+# ── Nom affiché dans l'onglet Actions ──
+name: CI/CD
+
+# Nom dynamique du run (optionnel). Variables: github.*, inputs.*…
+run-name: CI/CD — ${{ github.actor }} sur ${{ github.ref_name }}
+
+
+# ════════════════════════════════════════════════════════════════════
+# 1. DÉCLENCHEURS  (on:)  — quand le workflow tourne
+# ════════════════════════════════════════════════════════════════════
+on:
+  # — Sur push —
+  push:
+    branches: [main, "release/**"]   # globs autorisés
+    tags: ["v*"]                     # déclenche sur les tags de version
+    paths:                           # ne tourne que si ces fichiers changent
+      - "src/**"
+      - "!**/*.md"                   # "!" = ignore
+  # — Sur pull request —
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]   # défaut suffisant en général
+
+  # — Manuel, avec formulaire de saisie —
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Cible de déploiement"
+        type: choice
+        options: [staging, production]
+        default: staging
+      dry-run:
+        description: "Simulation sans effet"
+        type: boolean
+        default: true
+
+  # — Planifié (cron UTC) —
+  schedule:
+    - cron: "0 3 * * 1"   # tous les lundis à 03h00 UTC
+
+  # — Appelable par un autre workflow (reusable) —
+  # workflow_call:
+  #   inputs: { ... }
+  #   secrets: { ... }
+
+  # — Sur événements GitHub —
+  # release:
+  #   types: [published]
+
+
+# ════════════════════════════════════════════════════════════════════
+# 2. PERMISSIONS du GITHUB_TOKEN  — principe du moindre privilège
+# ════════════════════════════════════════════════════════════════════
+permissions:
+  contents: read          # lecture du repo (défaut sain)
+  # packages: write       # publier sur GitHub Packages / ghcr.io
+  # id-token: write       # OIDC (auth cloud sans secret long terme)
+  # pull-requests: write  # commenter/labelliser des PR
+  # pages: write          # déployer sur GitHub Pages
+
+
+# ════════════════════════════════════════════════════════════════════
+# 3. CONCURRENCE  — éviter les runs redondants
+# ════════════════════════════════════════════════════════════════════
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true   # annule le run précédent sur la même réf
+
+
+# ════════════════════════════════════════════════════════════════════
+# 4. VARIABLES & DÉFAUTS globaux
+# ════════════════════════════════════════════════════════════════════
+env:
+  CI: "true"
+  APP_NAME: mon-app           # 👉
+
+defaults:
+  run:
+    shell: bash               # shell par défaut de tous les `run`
+    # working-directory: ./app
+
+
+# ════════════════════════════════════════════════════════════════════
+# 5. JOBS
+#    Les jobs tournent EN PARALLÈLE par défaut.
+#    `needs:` crée des dépendances → exécution en chaîne.
+# ════════════════════════════════════════════════════════════════════
+jobs:
+
+  # ──────────────────────────────────────────────────────────────────
+  # JOB A — Qualité / Build / Tests  (le cœur de la CI)
+  # ──────────────────────────────────────────────────────────────────
+  build-test:
+    runs-on: ubuntu-latest    # 👉 macos-latest | windows-latest | self-hosted
+    timeout-minutes: 20       # garde-fou contre les jobs bloqués
+
+    # — Matrice : démultiplie le job sur plusieurs combinaisons —
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ["20", "22"]              # 👉 versions de ton runtime
+        os: [ubuntu-latest]
+        include:                            # ajoute une combinaison ponctuelle
+          - version: "22"
+            os: ubuntu-latest
+            coverage: true
+        # exclude: [...]                    # retire des combinaisons
+
+    # — Variables d'environnement propres au job —
+    env:
+      NODE_ENV: test
+
+    # — Conteneur dans lequel tourne le job (optionnel) —
+    # container:
+    #   image: node:22-bookworm
+
+    # — Services annexes (DB, cache…) accessibles via localhost —
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    # — Valeurs exposées aux jobs suivants —
+    outputs:
+      version-tag: ${{ steps.meta.outputs.tag }}
+
+    steps:
+      # Récupère le code
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # historique complet (utile pour versioning/tags)
+
+      # ── Mise en place du runtime — choisis le bloc de ton stack ──
+      # Node.js / TypeScript
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.version }}
+          cache: npm
+      #
+      # Python
+      # - uses: actions/setup-python@v5
+      #   with: { python-version: ${{ matrix.version }}, cache: pip }
+      #
+      # Go
+      # - uses: actions/setup-go@v5
+      #   with: { go-version: ${{ matrix.version }}, cache: true }
+      #
+      # Java
+      # - uses: actions/setup-java@v4
+      #   with: { distribution: temurin, java-version: ${{ matrix.version }}, cache: maven }
+
+      # ── Cache manuel (si l'action setup ne le gère pas) ──
+      # - uses: actions/cache@v4
+      #   with:
+      #     path: ~/.cache/mon-outil
+      #     key: ${{ runner.os }}-cache-${{ hashFiles('**/lockfile') }}
+      #     restore-keys: ${{ runner.os }}-cache-
+
+      # ── Installation des dépendances ── 👉 commande de ton stack
+      - name: Install
+        run: npm ci
+        # pip install -r requirements.txt   |   go mod download   |   mvn -B install
+
+      # ── Étapes de qualité (chacune peut échouer indépendamment) ──
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Type check
+        run: npm run typecheck --if-present
+
+      - name: Test
+        run: npm test --if-present
+
+      - name: Build
+        run: npm run build --if-present
+
+      # ── Étape conditionnelle (ne tourne que si la condition est vraie) ──
+      - name: Coverage upload
+        if: ${{ matrix.coverage == true }}
+        run: echo "Envoi de la couverture…"
+
+      # ── Définir un output réutilisable plus loin ──
+      - name: Compute metadata
+        id: meta
+        run: echo "tag=v$(date +%Y%m%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      # ── Conserver des fichiers produits (logs, build, rapports) ──
+      - name: Upload artifact
+        if: always()           # même si une étape précédente a échoué
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.version }}
+          path: dist           # 👉 build | .next | out | target …
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ──────────────────────────────────────────────────────────────────
+  # JOB B — Sécurité (tourne en parallèle de build-test)
+  # ──────────────────────────────────────────────────────────────────
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Audit des dépendances
+        run: npm audit --audit-level=high || true   # 👉 ou pip-audit, govulncheck…
+      # - name: CodeQL
+      #   uses: github/codeql-action/analyze@v3
+
+  # ──────────────────────────────────────────────────────────────────
+  # JOB C — Déploiement (CD)
+  #   Ne tourne qu'APRÈS build-test ET security (needs),
+  #   uniquement sur main, et utilise un "environment" GitHub
+  #   (qui peut imposer une APPROBATION MANUELLE + secrets dédiés).
+  # ──────────────────────────────────────────────────────────────────
+  deploy:
+    needs: [build-test, security]
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: production        # 👉 configure les règles dans Settings > Environments
+      url: https://mon-app.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-22
+          path: dist
+
+      # ── Auth cloud : 2 approches ──
+      # (a) Secret classique
+      #   env: { DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }} }
+      # (b) OIDC sans secret long terme (recommandé) — nécessite id-token: write
+      #   - uses: aws-actions/configure-aws-credentials@v4
+      #     with: { role-to-assume: arn:aws:iam::...:role/deploy, aws-region: eu-west-3 }
+
+      - name: Deploy
+        run: |
+          echo "Déploiement de ${{ needs.build-test.outputs.version-tag }}…"
+          # 👉 Décommente ta cible :
+          # npx vercel deploy --prod --token "$DEPLOY_TOKEN"
+          # rsync -avz ./dist/ user@serveur:/var/www/app
+          # docker build -t ghcr.io/${{ github.repository }}:latest . && docker push ...
+          # kubectl rollout restart deployment/mon-app
+
+  # ──────────────────────────────────────────────────────────────────
+  # JOB D — Notification finale (tourne quoi qu'il arrive)
+  # ──────────────────────────────────────────────────────────────────
+  notify:
+    needs: [build-test, security, deploy]
+    if: always()              # s'exécute même en cas d'échec amont
+    runs-on: ubuntu-latest
+    steps:
+      - name: Statut
+        run: |
+          echo "Résultat global : ${{ job.status }}"
+          # 👉 envoi Slack / Discord / e-mail ici
