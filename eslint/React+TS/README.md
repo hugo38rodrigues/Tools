@@ -1,10 +1,52 @@
-# Install the Linter for React + TS
+# Complete install 
+You do add they lignes for complet install: ```eslint-plugin-react-hooks eslint-plugin-react-refresh```
+Next you do add this file ** **
+``` 
+// @ts-check
+import js from '@eslint/js'
+import globals from 'globals'
+import tseslint from 'typescript-eslint'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import eslintConfigPrettier from 'eslint-config-prettier'
 
-Copy and paste the following command to install the dependencies, then paste **.eslintrc.react-ts.cjs** into your repo.
-Don't forget to also paste ts.config.json into your repo.
+export default tseslint.config(
+  { ignores: ['dist/**', 'coverage/**', 'node_modules/**'] },
 
-```
-npm i -D @eslint/js @typescript-eslint/eslint-plugin @typescript-eslint/parser \
-eslint-plugin-react eslint-plugin-react-hooks eslint-plugin-jsx-a11y \
-eslint-plugin-import eslint-import-resolver-typescript
+  js.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
+  reactRefresh.configs.vite,
+
+  {
+    files: ['**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: globals.browser,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    plugins: {
+      'react-hooks': reactHooks,
+    },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+      '@typescript-eslint/consistent-type-imports': 'error',
+      '@typescript-eslint/no-explicit-any': 'warn',
+    },
+  },
+
+  {
+    files: ['**/*.{js,mjs,cjs}'],
+    ...tseslint.configs.disableTypeChecked,
+  },
+
+  eslintConfigPrettier,
+)
 ```
