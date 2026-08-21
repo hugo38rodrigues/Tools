@@ -1,15 +1,10 @@
-# Install the Linter for NodeJs
-You do add this line for complete the install:  ```@vitest/eslint-plugin```
-
-Next you do add this file into your repository **.eslint.config.mjs**.
-
-``` 
 // @ts-check
 import js from '@eslint/js'
-import tseslint from 'typescript-eslint'
-import vitest from '@vitest/eslint-plugin'
-import eslintConfigPrettier from 'eslint-config-prettier'
 import globals from 'globals'
+import tseslint from 'typescript-eslint'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import eslintConfigPrettier from 'eslint-config-prettier'
 
 export default tseslint.config(
   { ignores: ['dist/**', 'coverage/**', 'node_modules/**'] },
@@ -17,33 +12,30 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   ...tseslint.configs.stylisticTypeChecked,
+  reactRefresh.configs.vite,
 
   {
+    files: ['**/*.{ts,tsx}'],
     languageOptions: {
-      globals: { ...globals.node, ...globals.es2021 },
+      globals: globals.browser,
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },
+    plugins: {
+      'react-hooks': reactHooks,
+    },
     rules: {
-      'no-useless-escape': 'off',
-      'class-methods-use-this': 'off',
-      'no-underscore-dangle': ['error', { allow: ['_id'] }],
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-misused-promises': 'error',
     },
-  },
-
-  {
-    files: ['**/*.{test,spec}.{ts,js}', 'test/**/*.{ts,js}'],
-    ...vitest.configs.recommended,
   },
 
   {
@@ -53,5 +45,3 @@ export default tseslint.config(
 
   eslintConfigPrettier,
 )
-
-```
